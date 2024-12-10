@@ -1,0 +1,29 @@
+/* App.css */
+
+.table td, .table th {
+    vertical-align: middle;
+}
+
+.table-bordered {
+    border: 2px solid #ffc107;
+}
+
+.bg-warning {
+    background-color: #ffc107 !important;
+}
+
+.bg-primary {
+    background-color: #007bff !important;
+}
+
+.text-warning {
+    color: #ffc107 !important;
+}
+
+.text-primary {
+    color: #007bff !important;
+}
+
+.container {
+    max-width: 1200px;
+}
