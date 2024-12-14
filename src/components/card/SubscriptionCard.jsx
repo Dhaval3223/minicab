@@ -6,8 +6,11 @@ import { Spinner } from "react-bootstrap"; // Import Spinner
 import axiosInstance from "../../utils/axiosInstance";
 import ReusableModal from "../models/WarningModel";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 function SubscriptionCard({ subscription }) {
+  const navigate = useNavigate();
+
   const {
     subscription_type,
     discount_status,
@@ -174,7 +177,14 @@ function SubscriptionCard({ subscription }) {
           style={{
             marginTop: "auto",
           }}
-          onClick={() => mutate()}
+          onClick={() => {
+            const token = localStorage.getItem("token");
+            if (!token) {
+              navigate("/login");
+            } else {
+              mutate();
+            }
+          }}
         >
           {loading ? (
             <Spinner animation="border" size="sm" /> // Show spinner when loading
