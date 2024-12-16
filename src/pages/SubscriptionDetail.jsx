@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { getDataWithToken, getmethodDataWithToken } from "../utils/Api";
 import {
   baseUrl,
@@ -23,6 +23,14 @@ import {
   Placeholder,
   Row,
 } from "react-bootstrap";
+import { useTerminateSubscription } from "../hooks/useTerminateSubscription";
+import { toast } from "react-toastify";
+import {
+  useCancelSubscription,
+  useFreezeSubscription,
+} from "../hooks/useSubscriptionActions";
+import axiosInstance from "../utils/axiosInstance";
+import ReusableModal from "../components/models/WarningModel";
 
 const Chip = ({ name, isActive }) => {
   return (
@@ -79,10 +87,38 @@ const SubscriptionPage = () => {
   const {
     data: userActiveSubscription,
     isLoading: isLoadinUserActiveSubscription,
-    error: userActiveSubscriptionError,
+    refetch: refetchUserActiveSubscriptionApi,
   } = useUserActiveSubscription();
 
+  const { mutate: freeze, isLoading: isFreezing } = useFreezeSubscription();
+  const { mutate: cancel, isLoading: isCanceling } = useCancelSubscription();
+  const { mutate: terminate, isLoading: isTerminating } =
+    useTerminateSubscription();
+
+  const handleAction = (actionType) => {
+    const payload = { userId: 123 }; // Example payload, adjust as needed
+
+    if (actionType === "freeze") {
+      freeze(payload, {
+        onSuccess: (data) => console.log("Freeze Success:", data),
+        onError: (error) => toast.error(error?.response?.data?.message),
+      });
+    } else if (actionType === "cancel") {
+      cancel(payload, {
+        onSuccess: (data) => console.log("Cancel Success:", data),
+        onError: (error) => toast.error(error?.response?.data?.message),
+      });
+    } else if (actionType === "terminate") {
+      terminate(payload, {
+        onSuccess: (data) => console.log("Terminate Success:", data),
+        onError: (error) => toast.error(error?.response?.data?.message),
+      });
+    }
+  };
+
   console.log("userActiveSubscription", userActiveSubscription);
+
+  const { mutate, isLoading: isLoadingMutation } = useTerminateSubscription();
 
   const {
     subscription_status,
@@ -99,7 +135,104 @@ const SubscriptionPage = () => {
     subscription_type,
     show_to_merchant,
     show_to_vendor,
+    id,
   } = userActiveSubscription?.data || {};
+
+  const [modalData, setModalData] = useState({
+    title: "",
+    message: "",
+  });
+  const [showModal, setShowModal] = useState(false);
+  const [finalConfirmationModal, setFinalConfirmationModal] = useState(false);
+  const [isFetchingSubscription, setIsFetchingSubscription] = useState(false); // Track loading state
+
+  const fetchApiData = async () => {
+    setIsFetchingSubscription(true); // Set to true when API is called
+    try {
+      const response = await axiosInstance.get(
+        `/user-validate-subscription?sub_id=${id}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch API");
+      }
+      return response.json();
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "something went wrong"
+      );
+      throw new Error("API Error");
+    } finally {
+      setIsFetchingSubscription(false); // Set to false once the API call is completed
+    }
+  };
+
+  const { mutate: dataMutation, isLoading } = useMutation(
+    "fetchModalData",
+    fetchApiData,
+    {
+      onSuccess: (data) => {
+        if (data.type === "success") {
+          setModalData({
+            title: "Attention!",
+            message: data.message,
+          });
+          setShowModal(true);
+        }
+      },
+      onError: (error) => {
+        console.error("API Error:", error);
+        setModalData({
+          title: "Attention!",
+          message: error?.response?.data?.message,
+        });
+      },
+    }
+  );
+
+  const handleConfirm = async () => {
+    try {
+      setShowModal(false);
+      const response = await axiosInstance.get("/get-subscription-agreement");
+      if (response.data.type === "success") {
+        setModalData({
+          title: "Subscription Agreement",
+          message: response.data.message,
+        });
+        setFinalConfirmationModal(true);
+      } else {
+        alert("Failed to fetch the subscription agreement.");
+      }
+    } catch (error) {
+      console.error("Error fetching subscription agreement:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "something went wrong"
+      );
+    }
+  };
+
+  const handleFinalConfirm = async () => {
+    try {
+      const response = await axiosInstance.get(
+        `/add-subscription-to-basket?sub_id=${id}`
+      );
+      alert("Subscription added to basket.");
+      setFinalConfirmationModal(false);
+    } catch (error) {
+      console.error("Error adding subscription to basket:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "something went wrong"
+      );
+    }
+  };
+
+  const handleClose = () => setShowModal(false);
+  const handleFinalCancel = () => setFinalConfirmationModal(false);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -118,8 +251,6 @@ const SubscriptionPage = () => {
           )
         : subscriptions.data // If subscriptionType is null, return all
       : subscriptions?.data;
-
-  console.log(filteredSubscriptions, "subscriptionHistory", subscriptions);
 
   return (
     <div className="container-fluid p-4">
@@ -198,6 +329,18 @@ const SubscriptionPage = () => {
                       type="checkbox"
                       className="form-check-input"
                       id="autoRenew"
+                      checked={is_auto_renew}
+                      onChange={(e) =>
+                        mutate(!is_auto_renew, {
+                          onSuccess: (data) => {
+                            refetchUserActiveSubscriptionApi();
+                            toast.success(data?.response?.data?.message);
+                          },
+                          onError: (error) => {
+                            toast.error(error?.response?.data?.message);
+                          },
+                        })
+                      }
                     />
                     <label className="form-check-label" htmlFor="autoRenew">
                       Auto Renew
@@ -216,23 +359,43 @@ const SubscriptionPage = () => {
                 </div>
                 <Row className="mb-2">
                   <Col xs={6} className="d-flex justify-content-end pe-1">
-                    <Button variant="success" className="w-100">
+                    <Button
+                      variant="success"
+                      className="w-100"
+                      disabled={isLoadingMutation}
+                      onClick={() => dataMutation()}
+                    >
                       Renew
                     </Button>
                   </Col>
                   <Col xs={6} className="d-flex justify-content-start ps-1">
-                    <Button variant="info" className="w-100">
+                    <Button
+                      variant="info"
+                      className="w-100"
+                      onClick={() => handleAction("freeze")}
+                      disabled={isFreezing}
+                    >
                       Freeze
                     </Button>
                   </Col>
                 </Row>
                 <Row>
                   <Col xs={6} className="d-flex justify-content-end pe-1">
-                    <Button variant="warning" className="w-100">
+                    <Button
+                      variant="warning"
+                      className="w-100"
+                      onClick={() => handleAction("cancel")}
+                      disabled={isCanceling}
+                    >
                       Cancel
                     </Button>
                   </Col>
-                  <Col xs={6} className="d-flex justify-content-start ps-1">
+                  <Col
+                    xs={6}
+                    className="d-flex justify-content-start ps-1"
+                    onClick={() => handleAction("terminate")}
+                    disabled={isTerminating}
+                  >
                     <Button variant="danger" className="w-100">
                       Terminate
                     </Button>
@@ -317,6 +480,24 @@ const SubscriptionPage = () => {
           </div>
         </div>
       </div>
+      <ReusableModal
+        title={modalData.title}
+        message={modalData.message}
+        showModal={showModal}
+        handleClose={handleClose}
+        onConfirm={handleConfirm}
+        onCancel={handleClose}
+      />
+
+      {/* Final Confirmation Modal */}
+      <ReusableModal
+        title="Agreement"
+        message={modalData.message}
+        showModal={finalConfirmationModal}
+        handleClose={handleFinalCancel}
+        onConfirm={handleFinalConfirm}
+        onCancel={handleFinalCancel}
+      />
     </div>
   );
 };

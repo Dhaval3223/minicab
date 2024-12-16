@@ -126,13 +126,13 @@ function SubscriptionCard({ subscription }) {
     }
   };
 
+  const handleClose = () => setShowModal(false);
+  const handleFinalCancel = () => setFinalConfirmationModal(false);
+
   const handleCancel = () => {
     alert("Cancelled!");
     setShowModal(false);
   };
-
-  const handleClose = () => setShowModal(false);
-  const handleFinalCancel = () => setFinalConfirmationModal(false);
 
   return (
     <div
