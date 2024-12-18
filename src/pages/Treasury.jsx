@@ -1,34 +1,152 @@
-import React, { useState } from "react";
-import { Tabs, Tab, Container, Spinner, Alert } from "react-bootstrap";
+import React, { useState, useEffect } from "react";
+import { Tabs, Tab, Container, Spinner } from "react-bootstrap";
 import DataTable from "react-data-table-component";
-import { useTransactions } from "../hooks/useTransactions";
+import useUserTransactionList from "../hooks/useTransactions";
 import "bootstrap/dist/css/bootstrap.min.css";
 import TransfersAndReports from "../components/TransfersAndReports";
 
+function convertData(input) {
+  return input?.map((item) => [
+    <div key={item[0]}>
+      <h6 className="mb-0">{item[0]}</h6>
+    </div>, // Subscription Name
+    <div key={item[0]}>
+      <h6 className="mb-0">{item[1]}</h6>
+    </div>, // Amount Paid
+    <div key={item[0]}>
+      <h6 className="mb-0">{item[2]}</h6>
+    </div>, // Status (Example 0)
+    <div key={item[0]}>
+      <h6 className="mb-0">{item[3]}</h6>
+    </div>, // Date
+    <div key={item[0]}>
+      <h6 className="mb-0">{item[3]}</h6>
+    </div>, // Date
+    <div key={item[0]}>
+      <h6 className="mb-0">{item[4]}</h6>
+    </div>, // Date
+  ]);
+}
+
 const TabExample = () => {
   const [activeTab, setActiveTab] = useState("wallet");
-  const { data, isLoading, isError } = useTransactions(activeTab);
+  const [tableData, setTableData] = useState([]);
+  const [queryParams, setQueryParams] = useState({
+    transaction_mode: "wallet",
+    start: 0,
+    length: 10,
+    order: [{ column: 0, dir: "asc" }], // Ensure this is always set
+    search: { value: "", regex: false },
+  });
+
+  console.log("queryParams", queryParams);
+
+  const { data, isLoading, isError } = useUserTransactionList({
+    transaction_mode: queryParams.transaction_mode,
+    draw: 1,
+    start: queryParams.start,
+    length: queryParams.length,
+    search: queryParams.search,
+    ...queryParams.order.reduce(
+      (acc, item, index) => ({
+        ...acc,
+        [`order[${index}][column]`]: item.column,
+        [`order[${index}][dir]`]: item.dir,
+      }),
+      {}
+    ),
+    ...Array.from({ length: 6 }).reduce(
+      (acc, _, index) => ({
+        ...acc,
+        [`columns[${index}][data]`]: index,
+        [`columns[${index}][searchable]`]: true,
+        [`columns[${index}][orderable]`]: true,
+        [`columns[${index}][search][value]`]: "",
+        [`columns[${index}][search][regex]`]: false,
+      }),
+      {}
+    ),
+  });
+
+  useEffect(() => {
+    const transformedData = data?.data?.data?.map((row) => ({
+      transaction_id: row[0], // HTML-wrapped content for Column 1
+      Date: row[1], // HTML-wrapped content for Column 2
+      description: row[2], // HTML-wrapped content for Column 3
+      credit: row[3], // HTML-wrapped content for Column 4
+      Debit: row[4], // HTML-wrapped content for Date
+      Balance: row[5], // HTML-wrapped content for Date
+    }));
+    setTableData(transformedData);
+  }, [data]);
+
+  console.log("data", data?.data?.data);
+
+  const handleTableChange = (action, tableState) => {
+    console.log("handleTableChange", action, tableState);
+    if (action === "pagination") {
+      setQueryParams((prev) => ({
+        ...prev,
+        start: (tableState.page - 1) * tableState.rowsPerPage,
+        length: tableState.rowsPerPage,
+      }));
+    } else if (action === "sort" && tableState.sortedColumn.sortField) {
+      setQueryParams((prev) => ({
+        ...prev,
+        order: [
+          {
+            column: tableState.sortedColumn.sortField,
+            dir: tableState.sortedColumn.sortDirection,
+          },
+        ],
+      }));
+    } else if (action === "search") {
+      setQueryParams((prev) => ({
+        ...prev,
+        search: { value: tableState.searchText, regex: false },
+      }));
+    }
+  };
 
   const columns = [
     {
       name: "Transaction ID",
-      selector: (row) => row.transaction_id || "N/A",
+      selector: (row) => {
+        console.log("row", row);
+        return row.transaction_id;
+      },
       sortable: true,
-    },
-    {
-      name: "Description",
-      selector: (row) => row.description || "N/A",
-      sortable: true,
-    },
-    {
-      name: "Amount",
-      selector: (row) => row.amount || "N/A",
-      sortable: true,
+      sortField: 0,
     },
     {
       name: "Date",
-      selector: (row) => row.date || "N/A",
+      selector: (row) => row.Date,
       sortable: true,
+      sortField: 1,
+    },
+    {
+      name: "Description",
+      selector: (row) => row.description,
+      sortable: true,
+      sortField: 2,
+    },
+    {
+      name: "Credit",
+      selector: (row) => row.credit,
+      sortable: true,
+      sortField: 3,
+    },
+    {
+      name: "Debit",
+      selector: (row) => row.Debit,
+      sortable: true,
+      sortField: 4,
+    },
+    {
+      name: "Balance",
+      selector: (row) => row.Balance,
+      sortable: true,
+      sortField: 4,
     },
   ];
 
@@ -36,38 +154,67 @@ const TabExample = () => {
     if (activeTab === "transfersReports") {
       return <TransfersAndReports />;
     }
+    if (isLoading) {
+      return <Spinner animation="border" />;
+    }
 
-    return isLoading ? (
-      <Spinner animation="border" />
-    ) : isError ? (
-      <Alert variant="danger">Failed to load transactions.</Alert>
-    ) : (
+    if (isError) {
+      return <p>Error loading data.</p>;
+    }
+
+    return (
       <DataTable
         title="Transaction List"
         columns={columns}
-        data={data?.transactions || []}
+        data={tableData || []}
         pagination
-        highlightOnHover
-        pointerOnHover
-        responsive
+        paginationServer
+        paginationTotalRows={data?.data?.recordsTotal || 0}
+        onChangePage={(page) => handleTableChange("pagination", { page })}
+        onChangeRowsPerPage={(rowsPerPage) =>
+          handleTableChange("pagination", { page: 1, rowsPerPage })
+        }
+        onSort={(column, sortDirection) =>
+          handleTableChange("sort", {
+            sortedColumn: { sortField: column.sortField, sortDirection },
+          })
+        }
         subHeader
         subHeaderComponent={
           <input
             type="text"
             placeholder="Search Transactions"
             className="form-control"
-            onChange={(e) => console.log(e.target.value)} // Optional: Implement custom filtering
+            onChange={(e) =>
+              handleTableChange("search", { searchText: e.target.value })
+            }
           />
         }
       />
     );
   };
 
+  // useEffect(() => {
+  //   // Ensure the order is always set when the tab or queryParams change
+  //   setQueryParams((prev) => ({
+  //     ...prev,
+  //     order: prev.order.length ? prev.order : [{ column: 0, dir: "asc" }],
+  //   }));
+  // }, [queryParams.transaction_mode]);
+
   return (
     <Container className="mt-4">
       <Tabs
         activeKey={activeTab}
-        onSelect={(k) => setActiveTab(k)}
+        onSelect={(k) => {
+          setActiveTab(k);
+          setQueryParams((prev) => ({
+            ...prev,
+            transaction_mode: k,
+            start: 0, // Reset to first page on tab change
+            order: prev.order.length ? prev.order : [{ column: 0, dir: "asc" }], // Ensure order is always set
+          }));
+        }}
         id="tab-example"
         className="mb-3 overflow-auto flex-nowrap d-flex"
         style={{ whiteSpace: "nowrap" }}
@@ -89,7 +236,7 @@ const TabExample = () => {
         </Tab>
         <Tab eventKey="transfersReports" title="Transfers & Reports">
           <h4>Transfers & Reports</h4>
-        </Tab>
+        </Tab>{" "}
       </Tabs>
       {renderTabContent()}
     </Container>
