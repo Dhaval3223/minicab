@@ -1,82 +1,99 @@
-import React from 'react'
+import React, { useState } from "react";
+import { Tabs, Tab, Container, Spinner, Alert } from "react-bootstrap";
+import DataTable from "react-data-table-component";
+import { useTransactions } from "../hooks/useTransactions";
+import "bootstrap/dist/css/bootstrap.min.css";
+import TransfersAndReports from "../components/TransfersAndReports";
 
-function Treasury() {
+const TabExample = () => {
+  const [activeTab, setActiveTab] = useState("wallet");
+  const { data, isLoading, isError } = useTransactions(activeTab);
+
+  const columns = [
+    {
+      name: "Transaction ID",
+      selector: (row) => row.transaction_id || "N/A",
+      sortable: true,
+    },
+    {
+      name: "Description",
+      selector: (row) => row.description || "N/A",
+      sortable: true,
+    },
+    {
+      name: "Amount",
+      selector: (row) => row.amount || "N/A",
+      sortable: true,
+    },
+    {
+      name: "Date",
+      selector: (row) => row.date || "N/A",
+      sortable: true,
+    },
+  ];
+
+  const renderTabContent = () => {
+    if (activeTab === "transfersReports") {
+      return <TransfersAndReports />;
+    }
+
+    return isLoading ? (
+      <Spinner animation="border" />
+    ) : isError ? (
+      <Alert variant="danger">Failed to load transactions.</Alert>
+    ) : (
+      <DataTable
+        title="Transaction List"
+        columns={columns}
+        data={data?.transactions || []}
+        pagination
+        highlightOnHover
+        pointerOnHover
+        responsive
+        subHeader
+        subHeaderComponent={
+          <input
+            type="text"
+            placeholder="Search Transactions"
+            className="form-control"
+            onChange={(e) => console.log(e.target.value)} // Optional: Implement custom filtering
+          />
+        }
+      />
+    );
+  };
+
   return (
-    <div className="container my-4">
-    {/* Header */}
-    <div className="d-flex justify-content-between align-items-center mb-3">
-      <h3>Wallet</h3>
-      <h4>Balance: $2567.31</h4>
-    </div>
+    <Container className="mt-4">
+      <Tabs
+        activeKey={activeTab}
+        onSelect={(k) => setActiveTab(k)}
+        id="tab-example"
+        className="mb-3 overflow-auto flex-nowrap d-flex"
+        style={{ whiteSpace: "nowrap" }}
+      >
+        <Tab eventKey="wallet" title="Wallet">
+          <h4>Wallet Transactions</h4>
+        </Tab>
+        <Tab eventKey="credit" title="Credit">
+          <h4>Credit Transactions</h4>
+        </Tab>
+        <Tab eventKey="online" title="Online">
+          <h4>Online Transactions</h4>
+        </Tab>
+        <Tab eventKey="fundTransfer" title="Fund Transfer">
+          <h4>Fund Transfer Transactions</h4>
+        </Tab>
+        <Tab eventKey="deposit" title="Deposit">
+          <h4>Deposit Transactions</h4>
+        </Tab>
+        <Tab eventKey="transfersReports" title="Transfers & Reports">
+          <h4>Transfers & Reports</h4>
+        </Tab>
+      </Tabs>
+      {renderTabContent()}
+    </Container>
+  );
+};
 
-    {/* Transactions Table */}
-    <div className="table-responsive">
-      <table className="table table-striped">
-        <thead className="thead-dark">
-          <tr>
-            <th>Transaction ID</th>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Credit</th>
-            <th>Debit</th>
-            <th>Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Example Data */}
-          <tr>
-            <td>TRWL123456789</td>
-            <td>2024-11-28</td>
-            <td>Amount transferred to credit</td>
-            <td>0</td>
-            <td>100.00</td>
-            <td>2467.31</td>
-          </tr>
-          {/* Map more data rows here */}
-        </tbody>
-      </table>
-    </div>
-
-    {/* Transfer Form */}
-    <div className="mt-4">
-      <h5>Transfer Form</h5>
-      <form>
-        <div className="row mb-3">
-          <div className="col-md-6">
-            <label>Pay To</label>
-            <select className="form-control">
-              <option>Select</option>
-              {/* Add options dynamically */}
-            </select>
-          </div>
-          <div className="col-md-6">
-            <label>Pay From</label>
-            <select className="form-control">
-              <option>Select</option>
-              {/* Add options dynamically */}
-            </select>
-          </div>
-        </div>
-        <button type="submit" className="btn btn-success">Transfer</button>
-      </form>
-    </div>
-
-    {/* Report Section */}
-    <div className="mt-4">
-      <h5>Transfers & Reports</h5>
-      <form className="d-flex align-items-center">
-        <select className="form-control w-25 me-3">
-          <option>Report Type</option>
-          {/* Add report types */}
-        </select>
-        <input type="date" className="form-control w-25 me-3" />
-        <input type="date" className="form-control w-25 me-3" />
-        <button type="button" className="btn btn-primary">View</button>
-        <button type="button" className="btn btn-secondary ms-2">Download</button>
-      </form>
-    </div>
-  </div>
-  )
-}
-
-export default Treasury
+export default TabExample;

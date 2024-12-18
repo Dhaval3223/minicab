@@ -1,0 +1,31 @@
+.transfer-form {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.transfer-form label {
+  font-weight: bold;
+  color: #495057;
+}
+
+.transfer-form button {
+  background-color: #007bff;
+  border: none;
+  font-weight: bold;
+}
+
+.transfer-form button:hover {
+  background-color: #0056b3;
+}
+
+@media (max-width: 576px) {
+  .transfer-form {
+    padding: 15px;
+  }
+
+  .transfer-form button {
+    font-size: 14px;
+  }
+}
